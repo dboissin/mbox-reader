@@ -1,0 +1,380 @@
+From dev-return-6263-archive-asf-public=cust-asf.ponee.io@apisix.apache.org  Mon Aug  4 01:22:56 2025
+Return-Path: <dev-return-6263-archive-asf-public=cust-asf.ponee.io@apisix.apache.org>
+X-Original-To: archive-asf-public@cust-asf.ponee.io
+Delivered-To: archive-asf-public@cust-asf.ponee.io
+Received: from mxout1-ec2-va.apache.org (mxout1-ec2-va.apache.org [3.227.148.255])
+	by mx-eu-03.ponee.io (Postfix) with ESMTPS id 78E153E694
+	for <archive-asf-public@cust-asf.ponee.io>; Mon,  4 Aug 2025 01:22:56 +0000 (UTC)
+Received: from mail.apache.org (mailgw-he-de.apache.org [116.203.246.181])
+	(using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits))
+	(No client certificate requested)
+	by mxout1-ec2-va.apache.org (ASF Mail Server at mxout1-ec2-va.apache.org) with ESMTPS id 7C3F24C6F5
+	for <archive-asf-public@cust-asf.ponee.io>; Mon,  4 Aug 2025 01:22:55 +0000 (UTC)
+Received: (qmail 3574755 invoked by uid 998); 4 Aug 2025 01:22:53 -0000
+Mailing-List: contact dev-help@apisix.apache.org; run by ezmlm
+Precedence: bulk
+List-Help: <mailto:dev-help@apisix.apache.org>
+List-Unsubscribe: <mailto:dev-unsubscribe@apisix.apache.org>
+List-Post: <mailto:dev@apisix.apache.org>
+List-Id: <dev.apisix.apache.org>
+Reply-To: dev@apisix.apache.org
+Delivered-To: mailing list dev@apisix.apache.org
+Received: (qmail 3574738 invoked by uid 116); 4 Aug 2025 01:22:53 -0000
+Received: from mailrelay1-he-de.apache.org (HELO mailrelay1-he-de.apache.org) (116.203.21.61)
+ by apache.org (qpsmtpd/0.94) with ESMTP; Mon, 04 Aug 2025 01:22:53 +0000
+Authentication-Results: apache.org; auth=none
+Received: from mail-pj1-f53.google.com (mail-pj1-f53.google.com [209.85.216.53])
+	by mailrelay1-he-de.apache.org (ASF Mail Server at mailrelay1-he-de.apache.org) with ESMTPSA id 20CDC41786
+	for <dev@apisix.apache.org>; Mon,  4 Aug 2025 01:22:53 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=apache.org; s=mail;
+	t=1754270573; bh=w238rP5+u8zJzRu2NEsqATJiuT+TX+BhhyRbO+J4lgs=;
+	h=References:In-Reply-To:From:Date:Subject:To:From;
+	b=b8bGpkhZiwbXyknEf+YrelCW99hNH3KtJfpLATibh0TlnA/Nnoj8oOlRruh85ROWM
+	 gpG6Iv7kL7f0i9PTJz6Pmq+IiIVUeWWkSuu0DGSXhee0U5HNnxmv0jxEhOl48c33Cw
+	 BKQog3eup5AosfntNPOszWzulNfGUzoTWBw6kzcoPXGKYhnhFDbouGy7qp+82vlYm9
+	 +apWqaWlVyBf36fLpI6r6pYG0pa4CplDtqFbfMUS4fdjKGhhkbucV2FdxTTUM/t3Er
+	 qZRECKqT+YpcOl7abMri3l5p59+pnLjiKg0Jyy/7lqzFGgQtVkbPLKXm8wkreG27/6
+	 t/WhAiqe6B8gA==
+Received: by mail-pj1-f53.google.com with SMTP id 98e67ed59e1d1-31f017262d9so2900295a91.1
+        for <dev@apisix.apache.org>; Sun, 03 Aug 2025 18:22:53 -0700 (PDT)
+X-Gm-Message-State: AOJu0YxZhhFnI+dYWkpobHgH4xGCfn6a0zGU1U/t5dQgodejne/OLgST
+	JqKuDn7x7RNnuWfrERnHmufyHyxwEbUb7wxJpHO/jMrBugLs1XPL2St0CKjP5CafCG6+VpqoUsV
+	Zo6HmvyefwI0kkenpL9R44s+bgiVXfUg=
+X-Google-Smtp-Source: AGHT+IHSGPYlNMQayqsENFOg7Z6dt/4eE93gXD6j24zjGo/0CMgp7Adl6HOL42yWUmn2bwfvbWkRLLYicd/l87/uPpc=
+X-Received: by 2002:a17:90b:4a02:b0:313:f6fa:5bca with SMTP id
+ 98e67ed59e1d1-321162a25dbmr9000945a91.22.1754270571706; Sun, 03 Aug 2025
+ 18:22:51 -0700 (PDT)
+MIME-Version: 1.0
+References: <CAAk8yMfBoT9MP4j9aEYMkwDZModV=RcU8bm3HjeG4JWcFJPORQ@mail.gmail.com>
+In-Reply-To: <CAAk8yMfBoT9MP4j9aEYMkwDZModV=RcU8bm3HjeG4JWcFJPORQ@mail.gmail.com>
+From: Zhiyuan Ju <juzhiyuan@apache.org>
+Date: Mon, 4 Aug 2025 09:22:15 +0800
+X-Gmail-Original-Message-ID: <CAC_jp4hY0u+fo2sJz5rrJAUVXRJe_HNvo74T-xqWCXmPQu_u7g@mail.gmail.com>
+X-Gm-Features: Ac12FXwq6nYZV7UhKF2_hzwKyi5SCYgut-EBSQZaGiWjOeACTwsIzaGWEHJWWoI
+Message-ID: <CAC_jp4hY0u+fo2sJz5rrJAUVXRJe_HNvo74T-xqWCXmPQu_u7g@mail.gmail.com>
+Subject: Re: [VOTE] Apache apisix-ingress-controller release version 2.0.0-rc3
+To: dev@apisix.apache.org
+Content-Type: multipart/alternative; boundary="000000000000444230063b7ff2f0"
+
+--000000000000444230063b7ff2f0
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
++1 (binding)
+
+I have tested the following items:
+
+1. Links
+2. NOTICE (should update to 2025)
+3. License
+4. Signature & Checksum
+5. Binary Files
+6. Changelogs
+
+
+On Mon, Jul 28, 2025 at 9:01=E2=80=AFPM Xin Rong <alinsran@apache.org> wrot=
+e:
+
+> Hello, Community,
+> This is a call for the vote to release Apache APISIX Ingress
+> controller version 2.0.0-rc3
+>
+> Release notes:
+>
+>
+> https://github.com/apache/apisix-ingress-controller/blob/2.0.0-rc3/CHANGE=
+LOG.md#200-rc3
+>
+> The release candidates:
+>
+>
+> https://dist.apache.org/repos/dist/dev/apisix/apisix-ingress-controller-2=
+.0.0-rc3/
+>
+> Git tag for the release:
+>
+> https://github.com/apache/apisix-ingress-controller/tree/2.0.0-rc3
+>
+> Release Commit ID:
+>
+>
+> https://github.com/apache/apisix-ingress-controller/commit/486cc6527eaadd=
+3884f1a018a96f91955eb9d2cb
+>
+> Keys to verify the Release Candidate:
+>
+> https://dist.apache.org/repos/dist/dev/apisix/KEYS
+>
+> Steps to validating the release:
+>
+> 1. Download the release
+>
+> wget
+> https://dist.apache.org/repos/dist/dev/apisix/apisix-ingress-controller-2=
+.0.0-rc3/apache-apisix-ingress-controller-2.0.0-rc3-src.tgz
+>
+> 2. Checksums and signatures
+>
+> wget https://dist.apache.org/repos/dist/dev/apisix/KEYS
+>
+> wget
+> https://dist.apache.org/repos/dist/dev/apisix/apisix-ingress-controller-2=
+.0.0-rc3/apache-apisix-ingress-controller-2.0.0-rc3-src.tgz.asc
+>
+> wget
+> https://dist.apache.org/repos/dist/dev/apisix/apisix-ingress-controller-2=
+.0.0-rc3/apache-apisix-ingress-controller-2.0.0-rc3-src.tgz.sha512
+>
+> gpg --import KEYS
+>
+> shasum -c apache-apisix-ingress-controller-2.0.0-rc3-src.tgz.sha512
+>
+> gpg --verify  apache-apisix-ingress-controller-2.0.0-rc3-src.tgz.asc
+> apache-apisix-ingress-controller-2.0.0-rc3-src.tgz
+>
+> 3. Unzip and Check files
+>
+> mkdir -p apisix-ingress-controller && tar zxvf
+> apache-apisix-ingress-controller-2.0.0-rc3-src.tgz -C
+> ./apisix-ingress-controller && cd apisix-ingress-controller
+>
+> 4. Build
+>
+> Prerequisites
+> * Installed [Go 1.23+](https://go.dev/doc/install) or later.
+> * A Kubernetes cluster available. We recommend using
+> [kind](https://kind.sigs.k8s.io/)
+> * Installed [ADC 0.20.0](https://github.com/api7/adc/releases/tag/v0.20.0=
+)
+>
+> # build & run
+> # for arm architecture, please run: ./bin/apisix-ingress-controller_arm64
+> make build && make install && ./bin/apisix-ingress-controller_amd64
+> --version
+>
+> The vote will be open for at least 72 hours or until the necessary number
+> of
+> votes are reached.
+>
+> Please vote accordingly:
+>
+> [ ] +1 approve
+> [ ] +0 no opinion
+> [ ] -1 disapprove with the reason
+>
+> Thanks!
+>
+
+--000000000000444230063b7ff2f0--
+
+From dev-return-6264-archive-asf-public=cust-asf.ponee.io@apisix.apache.org  Mon Aug  4 03:56:48 2025
+Return-Path: <dev-return-6264-archive-asf-public=cust-asf.ponee.io@apisix.apache.org>
+X-Original-To: archive-asf-public@cust-asf.ponee.io
+Delivered-To: archive-asf-public@cust-asf.ponee.io
+Received: from mxout1-ec2-va.apache.org (mxout1-ec2-va.apache.org [3.227.148.255])
+	by mx-eu-03.ponee.io (Postfix) with ESMTPS id 74A213E6DA
+	for <archive-asf-public@cust-asf.ponee.io>; Mon,  4 Aug 2025 03:56:48 +0000 (UTC)
+Received: from mail.apache.org (mailgw-he-de.apache.org [116.203.246.181])
+	(using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits))
+	(No client certificate requested)
+	by mxout1-ec2-va.apache.org (ASF Mail Server at mxout1-ec2-va.apache.org) with ESMTPS id 15EC54BC58
+	for <archive-asf-public@cust-asf.ponee.io>; Mon,  4 Aug 2025 03:56:21 +0000 (UTC)
+Received: (qmail 3793892 invoked by uid 998); 4 Aug 2025 03:56:20 -0000
+Mailing-List: contact dev-help@apisix.apache.org; run by ezmlm
+Precedence: bulk
+List-Help: <mailto:dev-help@apisix.apache.org>
+List-Unsubscribe: <mailto:dev-unsubscribe@apisix.apache.org>
+List-Post: <mailto:dev@apisix.apache.org>
+List-Id: <dev.apisix.apache.org>
+Reply-To: dev@apisix.apache.org
+Delivered-To: mailing list dev@apisix.apache.org
+Received: (qmail 3793867 invoked by uid 116); 4 Aug 2025 03:56:20 -0000
+Received: from ec2-52-204-25-47.compute-1.amazonaws.com (HELO mailrelay1-ec2-va.apache.org) (52.204.25.47)
+ by apache.org (qpsmtpd/0.94) with ESMTP; Mon, 04 Aug 2025 03:56:20 +0000
+Authentication-Results: apache.org; auth=none
+Received: from mail-wr1-f50.google.com (mail-wr1-f50.google.com [209.85.221.50])
+	by mailrelay1-ec2-va.apache.org (ASF Mail Server at mailrelay1-ec2-va.apache.org) with ESMTPSA id 68BC840BDF
+	for <dev@apisix.apache.org>; Mon,  4 Aug 2025 03:56:19 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=apache.org; s=mail;
+	t=1754279779; bh=vpxhX9Ddg1+1SZuM80ICQ3De0Eq6rYk5obziSi3hZvw=;
+	h=References:In-Reply-To:From:Date:Subject:To:From;
+	b=WLwRYYZig+dO4MTdZoXe13CI22m/qYjq1YmQNzXyh2EIR7PDLYU+Oxd1swLeIfIKP
+	 eL70/ZnDE7EzDZly5ZvXRiFbbs1OxW1PCHs0sgyzGc7dRdzoKDo5a6R8TdsawZWzTc
+	 mUPnYNdBb+L3aIlVt4L0O/+YJvZ9+ZE6EDG+F6aJJB7N5aI4N8rTGq704BqcH+Ixw3
+	 ziXIKpy3Y4fzlteKYU2J6mKvvG7JMH60H/Jr8xv3ZZ/YsPd572e4kLhuieffj+H4UL
+	 A9saZuhQN4ZAbkMYdWiBx1PU5w9sK9F1CisJQgWQXtQi9xuYsVBGJGiEOvkOOZ81ql
+	 uNU6n0sdVzUpA==
+Received: by mail-wr1-f50.google.com with SMTP id ffacd0b85a97d-3b783ea5014so1628040f8f.0
+        for <dev@apisix.apache.org>; Sun, 03 Aug 2025 20:56:19 -0700 (PDT)
+X-Gm-Message-State: AOJu0YyeP5mYbEhwtapN6uijQgYP79WKThpP4DBcmoiV2/UYEbf61SRH
+	qGrgi+ePAp5yB2+Md2tsEYxlfrhze4gAWcq3osm+57zX3pd6a/s2vSJdXzKadDoaehaORb9fxIc
+	w/d4zqDivDQyGxCdsIMHa9aqzEc9m5zI=
+X-Google-Smtp-Source: AGHT+IGdr+hiFVZ27i394hPK3ah7gADaxTl3yobmL65IzdFrcVnPDIhWNA0iDhD4y4RhwPrimDkotJbrVDiedzCXYjI=
+X-Received: by 2002:a05:6000:310e:b0:3a4:f975:30f7 with SMTP id
+ ffacd0b85a97d-3b8d94c48cemr6018999f8f.56.1754279778579; Sun, 03 Aug 2025
+ 20:56:18 -0700 (PDT)
+MIME-Version: 1.0
+References: <CAAk8yMfBoT9MP4j9aEYMkwDZModV=RcU8bm3HjeG4JWcFJPORQ@mail.gmail.com>
+ <CAC_jp4hY0u+fo2sJz5rrJAUVXRJe_HNvo74T-xqWCXmPQu_u7g@mail.gmail.com>
+In-Reply-To: <CAC_jp4hY0u+fo2sJz5rrJAUVXRJe_HNvo74T-xqWCXmPQu_u7g@mail.gmail.com>
+From: Zeping Bai <bzp2010@apache.org>
+Date: Mon, 4 Aug 2025 11:56:07 +0800
+X-Gmail-Original-Message-ID: <CAKW95OsDk4U9vy2Rwig+7C3aJGdo+6phcd2C=kObW4rg7WDx4Q@mail.gmail.com>
+X-Gm-Features: Ac12FXxnss9nycqxpmaNUWnfInq1cN9wMs1vFvLWLeIwVA4G9hF5LUDFyeS5e-o
+Message-ID: <CAKW95OsDk4U9vy2Rwig+7C3aJGdo+6phcd2C=kObW4rg7WDx4Q@mail.gmail.com>
+Subject: Re: [VOTE] Apache apisix-ingress-controller release version 2.0.0-rc3
+To: dev@apisix.apache.org
+Content-Type: multipart/alternative; boundary="00000000000009fcd4063b8217cf"
+
+--00000000000009fcd4063b8217cf
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
++1 (binding)
+
+I checked:
+1. Download links are OK.
+2. Checksum and signature are OK.
+3. LICENSE and NOTICE files exist.
+4. Building on Gitpod (Ubuntu 22.04) was successful.
+
+On Mon, Aug 4, 2025 at 9:23=E2=80=AFAM Zhiyuan Ju <juzhiyuan@apache.org> wr=
+ote:
+
+> +1 (binding)
+>
+> I have tested the following items:
+>
+> 1. Links
+> 2. NOTICE (should update to 2025)
+> 3. License
+> 4. Signature & Checksum
+> 5. Binary Files
+> 6. Changelogs
+>
+>
+> On Mon, Jul 28, 2025 at 9:01=E2=80=AFPM Xin Rong <alinsran@apache.org> wr=
+ote:
+>
+> > Hello, Community,
+> > This is a call for the vote to release Apache APISIX Ingress
+> > controller version 2.0.0-rc3
+> >
+> > Release notes:
+> >
+> >
+> >
+> https://github.com/apache/apisix-ingress-controller/blob/2.0.0-rc3/CHANGE=
+LOG.md#200-rc3
+> >
+> > The release candidates:
+> >
+> >
+> >
+> https://dist.apache.org/repos/dist/dev/apisix/apisix-ingress-controller-2=
+.0.0-rc3/
+> >
+> > Git tag for the release:
+> >
+> > https://github.com/apache/apisix-ingress-controller/tree/2.0.0-rc3
+> >
+> > Release Commit ID:
+> >
+> >
+> >
+> https://github.com/apache/apisix-ingress-controller/commit/486cc6527eaadd=
+3884f1a018a96f91955eb9d2cb
+> >
+> > Keys to verify the Release Candidate:
+> >
+> > https://dist.apache.org/repos/dist/dev/apisix/KEYS
+> >
+> > Steps to validating the release:
+> >
+> > 1. Download the release
+> >
+> > wget
+> >
+> https://dist.apache.org/repos/dist/dev/apisix/apisix-ingress-controller-2=
+.0.0-rc3/apache-apisix-ingress-controller-2.0.0-rc3-src.tgz
+> >
+> > 2. Checksums and signatures
+> >
+> > wget https://dist.apache.org/repos/dist/dev/apisix/KEYS
+> >
+> > wget
+> >
+> https://dist.apache.org/repos/dist/dev/apisix/apisix-ingress-controller-2=
+.0.0-rc3/apache-apisix-ingress-controller-2.0.0-rc3-src.tgz.asc
+> >
+> > wget
+> >
+> https://dist.apache.org/repos/dist/dev/apisix/apisix-ingress-controller-2=
+.0.0-rc3/apache-apisix-ingress-controller-2.0.0-rc3-src.tgz.sha512
+> >
+> > gpg --import KEYS
+> >
+> > shasum -c apache-apisix-ingress-controller-2.0.0-rc3-src.tgz.sha512
+> >
+> > gpg --verify  apache-apisix-ingress-controller-2.0.0-rc3-src.tgz.asc
+> > apache-apisix-ingress-controller-2.0.0-rc3-src.tgz
+> >
+> > 3. Unzip and Check files
+> >
+> > mkdir -p apisix-ingress-controller && tar zxvf
+> > apache-apisix-ingress-controller-2.0.0-rc3-src.tgz -C
+> > ./apisix-ingress-controller && cd apisix-ingress-controller
+> >
+> > 4. Build
+> >
+> > Prerequisites
+> > * Installed [Go 1.23+](https://go.dev/doc/install) or later.
+> > * A Kubernetes cluster available. We recommend using
+> > [kind](https://kind.sigs.k8s.io/)
+> > * Installed [ADC 0.20.0](
+> https://github.com/api7/adc/releases/tag/v0.20.0)
+> >
+> > # build & run
+> > # for arm architecture, please run: ./bin/apisix-ingress-controller_arm=
+64
+> > make build && make install && ./bin/apisix-ingress-controller_amd64
+> > --version
+> >
+> > The vote will be open for at least 72 hours or until the necessary numb=
+er
+> > of
+> > votes are reached.
+> >
+> > Please vote accordingly:
+> >
+> > [ ] +1 approve
+> > [ ] +0 no opinion
+> > [ ] -1 disapprove with the reason
+> >
+> > Thanks!
+> >
+>
+
+
+--=20
+Best regards!
+Zeping Bai  @bzp2010
+
+--00000000000009fcd4063b8217cf--
+From jtrumbo@example1.com Sun Dec 12 12:27:33 2004
+X-IronPort-RCPT-TO: trumbo@example1.com
+From: jtrumbo@example1.com
+To: trumbo@example2.com
+Subject: Quote this, if you dare
+Date: Sun, 12 Dec 2004 12:28:00 -0700
+
+The following line is just From
+>From A From Line
+
+The following line has quoted >From
+>>From A >From Line
+
+The following line has many >>>>From
+>>>>>From This line has 4 > characters before From
+
+And this is the last line
