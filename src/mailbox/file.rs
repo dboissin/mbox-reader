@@ -1,41 +1,40 @@
-use std::{fmt::Display, fs::File, io::{BufRead, BufReader, Error}};
+use std::{fmt::Display, fs::File, io::{BufRead, BufReader, Error}, ops::Range};
 
 use chrono::{DateTime, Utc};
+use memmap2::Mmap;
+use quoted_printable::{decode, ParseMode};
 use serde::Serialize;
 use tracing::{error, info, warn};
 
-use crate::mailbox::{Email, EmailError, EmailId, EmailReader, FileSource, MailboxError, Mbox};
+use crate::mailbox::{Email, EmailError, FileSource, MailStorageRepository, MailboxError};
 
 pub type SeekRange = (u64, u64);
 
+pub struct MboxFile {
+    emails: Vec<EmailFilePtr>,
+    file_mmap: Mmap,
+}
+
 #[derive(Serialize)]
-pub struct BodyFilePtr {
+struct BodyFilePtr {
     content_type: String,
     content_transfer_encoding: String,
     content: SeekRange,
 }
-pub struct EmailFilePtr {
-    email: SeekRange,
-    subject: SeekRange,
-    from: SeekRange,
+
+struct EmailFilePtr {
+    email: Range<usize>,
+    subject: Range<usize>,
+    from: Range<usize>,
     datetime: DateTime<Utc>,
     bodies: Vec<BodyFilePtr>,
 }
 
-
-
-impl EmailReader for EmailFilePtr {
-    fn read_email(_id: &EmailId) -> Result<Email, EmailError> {
-        todo!()
-    }
-}
-
-impl<'a> TryFrom<FileSource<'a>> for Mbox<EmailFilePtr> {
+impl<'a> TryFrom<FileSource<'a>> for MboxFile {
     type Error = MailboxError;
 
     fn try_from(source: FileSource<'a>) -> Result<Self, Self::Error> {
-        let tokens = lex(source.0)?;
-        parse(&tokens).map(| emails| Mbox { emails })
+        MboxFile::new(source.0)
     }
 
 }
@@ -94,9 +93,9 @@ impl EmailFilePtrValidator {
     fn validate(self) -> Result<EmailFilePtr, MailboxError> {
         if self.email.is_some() && self.subject.is_some() && self.from.is_some() && self.datetime.is_some() {
             Ok(EmailFilePtr{
-                email: self.email.unwrap(),
-                subject: self.subject.unwrap(),
-                from: self.from.unwrap(),
+                email: Range { start: self.email.unwrap().0 as usize, end: self.email.unwrap().1 as usize },
+                subject: Range { start: self.subject.unwrap().0 as usize, end: self.subject.unwrap().1 as usize },
+                from: Range { start: self.from.unwrap().0 as usize, end: self.from.unwrap().1 as usize },
                 datetime: self.datetime.unwrap(),
                 bodies: self.bodies
             })
@@ -111,141 +110,191 @@ impl EmailFilePtrValidator {
     }
 }
 
-fn parse(tokens: &[Token]) -> Result<Vec<EmailFilePtr>, MailboxError> {
-    let mut emails = vec![];
-    let mut stack: Vec<&Token> = vec![];
-    let mut validator = EmailFilePtrValidator::new();
+impl MboxFile {
 
-    for token in tokens {
-        match token {
-            Token::StartEmail(_) if !stack.is_empty() => {
-                error!("Invalid email missing tokens.");
-                stack.clear();
-            },
-            Token::End(end_pos) => match stack.pop() {
-                Some(Token::Boby(start_pos)) => {
-                    let (cte, ct) = if stack.len() > 2 {
-                        match (stack.pop().unwrap(), stack.pop().unwrap()) {
-                            (Token::ContentTransferEncoding(cte), Token::ContentType(ct)) =>
-                                (cte.as_str(), ct.as_str()),
-                            (a,b) => {
-                                stack.push(b);
-                                stack.push(a);
-                                ("quoted-printable", "text/plain")
-                            } 
+    pub fn new(file_path: &str) -> Result<Self, MailboxError> {
+        let tokens = Self::lex(file_path)?;
+        let file_mmap = unsafe {
+            // unsafe block require in case of file is truncated while in use
+            Mmap::map(&File::open(file_path)?)?
+        };
+        Self::parse(&tokens).map(| emails| MboxFile { emails, file_mmap })
+    }
+
+    fn parse(tokens: &[Token]) -> Result<Vec<EmailFilePtr>, MailboxError> {
+        let mut emails = vec![];
+        let mut stack: Vec<&Token> = vec![];
+        let mut validator = EmailFilePtrValidator::new();
+
+        for token in tokens {
+            match token {
+                Token::StartEmail(_) if !stack.is_empty() => {
+                    error!("Invalid email missing tokens.");
+                    stack.clear();
+                },
+                Token::End(end_pos) => match stack.pop() {
+                    Some(Token::Boby(start_pos)) => {
+                        let (cte, ct) = if stack.len() > 2 {
+                            match (stack.pop().unwrap(), stack.pop().unwrap()) {
+                                (Token::ContentTransferEncoding(cte), Token::ContentType(ct)) =>
+                                    (cte.as_str(), ct.as_str()),
+                                (a,b) => {
+                                    stack.push(b);
+                                    stack.push(a);
+                                    ("quoted-printable", "text/plain")
+                                }
+                            }
+                        } else {
+                            ("quoted-printable", "text/plain")
+                        };
+                        validator.bodies.push(BodyFilePtr {
+                            content_type: ct.to_string(),
+                            content_transfer_encoding: cte.to_string(),
+                            content: (*start_pos, *end_pos)
+                        })
+                    },
+                    Some(Token::From(start_pos)) =>
+                        validator.from = Some((*start_pos, *end_pos)),
+                    Some(Token::Subject(start_pos)) =>
+                        validator.subject = Some((*start_pos, *end_pos)),
+                    Some(Token::StartEmail(start_pos)) => {
+                        validator.email = Some((*start_pos, *end_pos));
+                        let tmp = validator;
+                        validator = EmailFilePtrValidator::new();
+                        if let Ok(email_ptr) = tmp.validate() {
+                            emails.push(email_ptr);
                         }
-                    } else {
-                        ("quoted-printable", "text/plain")
-                    };
-                    validator.bodies.push(BodyFilePtr {
-                        content_type: ct.to_string(),
-                        content_transfer_encoding: cte.to_string(),
-                        content: (*start_pos, *end_pos)
-                    })
+                    },
+                    _ => return  Err(MailboxError::MboxParseError),
                 },
-                Some(Token::From(start_pos)) =>
-                    validator.from = Some((*start_pos, *end_pos)),
-                Some(Token::Subject(start_pos)) =>
-                    validator.subject = Some((*start_pos, *end_pos)),
-                Some(Token::StartEmail(start_pos)) => {
-                    validator.email = Some((*start_pos, *end_pos));
-                    let tmp = validator;
-                    validator = EmailFilePtrValidator::new();
-                    if let Ok(email_ptr) = tmp.validate() {
-                        emails.push(email_ptr);
-                    }
+                Token::Date(date) => {
+                    validator.datetime = DateTime::parse_from_rfc2822(&date).ok()
+                            .map(|dt| dt.to_utc());
                 },
-                _ => return  Err(MailboxError::MboxParseError),
-            },
-            Token::Date(date) => {
-                validator.datetime = DateTime::parse_from_rfc2822(&date).ok()
-                        .map(|dt| dt.to_utc());
-            },
-            Token::ContentTransferEncoding(_) | Token::ContentType(_) => (),
-            _ => stack.push(token),
+                Token::ContentTransferEncoding(_) | Token::ContentType(_) => (),
+                _ => stack.push(token),
 
-        };
-    }
-    Ok(emails)
-}
-
-fn lex(file_path: &str) -> Result<Vec<Token>, MailboxError> {
-    let mut file_reader = BufReader::new(File::open(file_path)?);
-    let mut seek_position:u64 = 0;
-    let mut buf = String::new();
-    let mut tokens = vec![];
-    let mut boundary = None;
-    let mut current_token = Token::Ignore;
-
-    while let Ok(read_size) = file_reader.read_line(&mut buf) && read_size > 0 {
-        let token = lex_line(seek_position, &buf[0..&buf.len()-1], &mut boundary, &current_token);
-        match token {
-            Token::Continuation => (),
-            _ => {
-                lex_push_current_token(seek_position, &mut tokens, current_token, false);
-                current_token = token
-            },
-        };
-        seek_position += read_size as u64;
-        buf.clear();
-    }
-    lex_push_current_token(seek_position, &mut tokens, current_token, true);
-    Ok(tokens)
-}
-
-fn lex_push_current_token(seek_position: u64, tokens: &mut Vec<Token>, current_token: Token, end: bool) {
-    match current_token {
-        Token::StartEmail(_) if end => (),
-        Token::StartEmail(position) if position > 0 => {
-            tokens.push(Token::End(position));
-            tokens.push(current_token);
+            };
         }
-        Token::Ignore | Token::Continuation => (),
-        Token::End(_) | Token::StartEmail(_) | Token::ContentType(_) |
-            Token::Date(_) | Token::ContentTransferEncoding(_) => tokens.push(current_token),
-        Token::From(_) | Token::Subject(_) | Token::Boby(_) => {
-            tokens.push(current_token);
+        Ok(emails)
+    }
+
+    fn lex(file_path: &str) -> Result<Vec<Token>, MailboxError> {
+        let mut file_reader = BufReader::new(File::open(file_path)?);
+        let mut seek_position:u64 = 0;
+        let mut buf = String::new();
+        let mut tokens = vec![];
+        let mut boundary = None;
+        let mut current_token = Token::Ignore;
+
+        while let Ok(read_size) = file_reader.read_line(&mut buf) && read_size > 0 {
+            let token = Self::lex_line(seek_position, &buf[0..&buf.len()-1], &mut boundary, &current_token);
+            match token {
+                Token::Continuation => (),
+                _ => {
+                    Self::lex_push_current_token(seek_position, &mut tokens, current_token, false);
+                    current_token = token
+                },
+            };
+            seek_position += read_size as u64;
+            buf.clear();
+        }
+        Self::lex_push_current_token(seek_position, &mut tokens, current_token, true);
+        Ok(tokens)
+    }
+
+    fn lex_push_current_token(seek_position: u64, tokens: &mut Vec<Token>, current_token: Token, end: bool) {
+        match current_token {
+            Token::StartEmail(_) if end => (),
+            Token::StartEmail(position) if position > 0 => {
+                tokens.push(Token::End(position));
+                tokens.push(current_token);
+            }
+            Token::Ignore | Token::Continuation => (),
+            Token::End(_) | Token::StartEmail(_) | Token::ContentType(_) |
+                Token::Date(_) | Token::ContentTransferEncoding(_) => tokens.push(current_token),
+            Token::From(_) | Token::Subject(_) | Token::Boby(_) => {
+                tokens.push(current_token);
+                tokens.push(Token::End(seek_position));
+            }
+        }
+        if end {
             tokens.push(Token::End(seek_position));
         }
     }
-    if end {
-        tokens.push(Token::End(seek_position));
+
+    fn lex_line(seek_position: u64, buf: &str, boundary: &mut Option<String>, current_token: &Token) -> Token {
+        if buf.starts_with("From ") {
+            *boundary = None;
+            Token::StartEmail(seek_position)
+        } else if buf.starts_with("Subject: ") {
+            Token::Subject(seek_position + 9)
+        } else if buf.starts_with("From: ") {
+            Token::From(seek_position + 6)
+        } else if buf.starts_with("Date: ") {
+            Token::Date(buf[6..].to_string())
+        } else if buf.starts_with("Content-Transfer-Encoding: ") {
+            Token::ContentTransferEncoding(buf[27..].to_string())
+        } else if buf.starts_with("Content-Type: ") {
+            if let Some(nb) = buf.find("boundary=") {
+                let tmp_boundary = &buf[(nb+10)..];
+                if let Some(idx) = tmp_boundary.find('"') {
+                    *boundary = Some((&tmp_boundary[0..idx]).to_string())
+                }
+                Token::Ignore
+            } else {
+                Token::ContentType(buf[14..].to_string())
+            }
+        } else if let Some(boundary) = &boundary && buf.starts_with(boundary) {
+            Token::End(seek_position)
+        } else {
+            match *current_token {
+                Token::ContentTransferEncoding(_) if buf.is_empty() => Token::Boby(seek_position),
+                Token::Boby(_) => Token::Continuation,
+                _ if boundary.is_none() && buf.is_empty() => Token::Boby(seek_position),
+                _ if buf.starts_with(" ") => Token::Continuation,
+                _ => Token::Ignore
+            }
+        }
     }
+
+    fn read_content(&self, range: &Range<usize>) -> Result<String, MailboxError> {
+        if let Ok(mut decoded) = decode(&self.file_mmap[range.start..range.end], ParseMode::Strict) {
+            for _ in 0..2 {
+                if let Some(end_val) = decoded.pop() && end_val != b'\n' && end_val != b'\r' {
+                    decoded.push(end_val);
+                }
+            }
+            String::from_utf8(decoded).or(Err(MailboxError::UTF8EncodeError))
+        } else {
+            Err(MailboxError::DecodeQuotedPrintableError)
+        }
+    }
+
 }
 
-fn lex_line(seek_position: u64, buf: &str, boundary: &mut Option<String>, current_token: &Token) -> Token {
-    if buf.starts_with("From ") {
-        *boundary = None;
-        Token::StartEmail(seek_position)
-    } else if buf.starts_with("Subject: ") {
-        Token::Subject(seek_position + 9)
-    } else if buf.starts_with("From: ") {
-        Token::From(seek_position + 6)
-    } else if buf.starts_with("Date: ") {
-        Token::Date(buf[6..].to_string())
-    } else if buf.starts_with("Content-Transfer-Encoding: ") {
-        Token::ContentTransferEncoding(buf[27..].to_string())
-    } else if buf.starts_with("Content-Type: ") {
-        if let Some(nb) = buf.find("boundary=") {
-            let tmp_boundary = &buf[(nb+10)..];
-            if let Some(idx) = tmp_boundary.find('"') {
-                *boundary = Some((&tmp_boundary[0..idx]).to_string())
-            }
-            Token::Ignore
+impl MailStorageRepository for MboxFile {
+    type EmailId = usize;
+
+    fn get_email(&self, id: &Self::EmailId) -> Result<Email, MailboxError> {
+        if let Some(email_ptr) = self.emails.get(*id) {
+            let email = Email {
+                from: self.read_content(&email_ptr.from)?,
+                datetime: email_ptr.datetime,
+                subject: self.read_content(&email_ptr.subject)?,
+                body_text: None,
+                body_html: None
+            };
+            Ok(email)
         } else {
-            Token::ContentType(buf[14..].to_string())
-        }
-    } else if let Some(boundary) = &boundary && buf.starts_with(boundary) {
-        Token::End(seek_position)
-    } else {
-        match *current_token {
-            Token::ContentTransferEncoding(_) if buf.is_empty() => Token::Boby(seek_position),
-            Token::Boby(_) => Token::Continuation,
-            _ if boundary.is_none() && buf.is_empty() => Token::Boby(seek_position),
-            _ if buf.starts_with(" ") => Token::Continuation,
-            _ => Token::Ignore
+            Err(MailboxError::EmailNotFound)
         }
     }
+
+    fn count_emails(&self) -> Result<usize, MailboxError> {
+        Ok(self.emails.len())
+    }
+
 }
 
 #[cfg(test)]
@@ -265,28 +314,28 @@ mod tests {
     #[test]
     #[traced_test]
     fn test_seek_positions() {
-        let tokens = lex("datasets/test_seek_positions.mbox");
+        let tokens = MboxFile::lex("datasets/test_seek_positions.mbox");
         assert!(tokens.is_ok());
-        let res = parse(&tokens.unwrap());
+        let res = MboxFile::parse(&tokens.unwrap());
         assert!(res.is_ok());
         let emails = res.unwrap();
         println!("emails len : {}", emails.len());
         assert_eq!(1, emails.len());
-        assert_eq!(25, emails[0].email.0);
+        assert_eq!(25, emails[0].email.start);
     }
 
     #[test]
     fn test_parse_file() {
-        let tokens = lex("datasets/test_lex.mbox");
+        let tokens = MboxFile::lex("datasets/test_lex.mbox");
         assert!(tokens.is_ok());
-        let emails = parse(&tokens.unwrap());
+        let emails = MboxFile::parse(&tokens.unwrap());
         assert!(emails.is_ok());
         assert_eq!(3, emails.unwrap().len());
     }
 
     #[test]
     fn test_lex_file() {
-        let tokens = lex("datasets/test_lex.mbox");
+        let tokens = MboxFile::lex("datasets/test_lex.mbox");
         assert!(tokens.is_ok());
         // for token in tokens.as_ref().unwrap() {
         //     println!("{token}")
@@ -297,7 +346,7 @@ mod tests {
     #[test]
     fn test_lex_line_from() {
         let mut boundary = None;
-        let token = lex_line(0, "From toto@example.com\n", &mut boundary, &Token::Ignore);
+        let token = MboxFile::lex_line(0, "From toto@example.com\n", &mut boundary, &Token::Ignore);
         match token {
             Token::StartEmail(pos) => assert_eq!(pos, 0),
             _ => panic!("Expected StartEmail token"),
@@ -307,7 +356,7 @@ mod tests {
     #[test]
     fn test_lex_line_subject() {
         let mut boundary = None;
-        let token = lex_line(10, "Subject: Hello\n", &mut boundary, &Token::Ignore);
+        let token = MboxFile::lex_line(10, "Subject: Hello\n", &mut boundary, &Token::Ignore);
         match token {
             Token::Subject(pos) => assert_eq!(pos, 19), // 10 + 9
             _ => panic!("Expected Subject token"),
@@ -317,7 +366,7 @@ mod tests {
     #[test]
     fn test_lex_line_date() {
         let mut boundary = None;
-        let token = lex_line(5, "Date: Mon, 1 Jan 2020 00:00:00 +0000\n", &mut boundary, &Token::Ignore);
+        let token = MboxFile::lex_line(5, "Date: Mon, 1 Jan 2020 00:00:00 +0000\n", &mut boundary, &Token::Ignore);
         match token {
             Token::Date(ref s) => assert_eq!(s, "Mon, 1 Jan 2020 00:00:00 +0000\n"),
             _ => panic!("Expected Date token"),
@@ -327,7 +376,7 @@ mod tests {
     #[test]
     fn test_lex_line_content_type_with_boundary() {
         let mut boundary = None;
-        let token = lex_line(0, "Content-Type: multipart/mixed; boundary=\"abc123\"\n", &mut boundary, &Token::Ignore);
+        let token = MboxFile::lex_line(0, "Content-Type: multipart/mixed; boundary=\"abc123\"\n", &mut boundary, &Token::Ignore);
         assert!(matches!(token, Token::Ignore));
         assert_eq!(boundary, Some("abc123".to_string()));
     }
@@ -335,7 +384,7 @@ mod tests {
     #[test]
     fn test_lex_line_ignore() {
         let mut boundary = None;
-        let token = lex_line(0, "Random header\n", &mut boundary, &Token::Ignore);
+        let token = MboxFile::lex_line(0, "Random header\n", &mut boundary, &Token::Ignore);
         assert!(matches!(token, Token::Ignore));
     }
 }

@@ -1,5 +1,5 @@
-use mbox_viewer::mailbox::{file::EmailFilePtr, FileSource, Mbox};
+use mbox_viewer::mailbox::{file::MboxFile, FileSource};
 
 fn main() {
-    let mailbox:Mbox<EmailFilePtr> = FileSource("fegge").try_into().unwrap();
+    let mailbox:MboxFile = FileSource("fegge").try_into().unwrap();
 }

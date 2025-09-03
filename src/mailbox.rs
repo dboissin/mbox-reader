@@ -1,15 +1,15 @@
-pub mod file;
+use chrono::{DateTime, Utc};
 
-pub struct EmailId(usize);
+pub mod file;
 
 pub struct FileSource<'a>(pub &'a str);
 
 pub struct Email {
-    _from: String,
-    _to: String,
-    _subject: String,
-    _body_text: Option<String>,
-    _body_html: Option<String>
+    pub from: String,
+    pub datetime: DateTime<Utc>,
+    pub subject: String,
+    pub body_text: Option<String>,
+    pub body_html: Option<String>
 }
 
 pub enum EmailError {
@@ -22,18 +22,20 @@ pub enum MailboxError {
     MboxFileNotFound,
     MboxParseError,
     MboxValidationError,
+    EmailNotFound,
+    DecodeQuotedPrintableError,
+    UTF8EncodeError
 }
 
-pub trait Mailbox {
-    
+pub trait MailStorageRepository {
+    type EmailId;
+
+    fn get_email(&self, id: &Self::EmailId) -> Result<Email, MailboxError>;
+
+    fn count_emails(&self) -> Result<usize, MailboxError>;
+
 }
 
-pub trait EmailReader {
-
-    fn read_email(id: &EmailId) -> Result<Email, EmailError>;
-
-}
-
-pub struct Mbox<T:EmailReader> {
-    emails: Vec<T>
+pub struct MailboxService<M:MailStorageRepository> {
+    storage: M,
 }
