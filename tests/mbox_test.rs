@@ -1,5 +1,6 @@
 
 use mbox_viewer::mailbox::{file::MboxFile, FileSource, MailStorageRepository, MailboxError};
+use tracing_test::traced_test;
 
 #[test]
 fn test_not_exists_mbox_file() {
@@ -25,5 +26,25 @@ fn test_count_emails() {
 fn test_get_email() {
     let email_repository = MboxFile::new("datasets/test_lex.mbox").unwrap();
     let email = email_repository.get_email(&1).unwrap();
-    assert_eq!("Re: [VOTE] Apache apisix-ingress-controller release version 2.0.0-rc3", email.subject)
+    assert_eq!("Re: [VOTE] Apache apisix-ingress-controller release version 2.0.0-rc3", email.subject);
+    assert!(email.body_html.is_none());
+    assert!(email.body_text.is_some());
+}
+
+#[test]
+fn test_get_email_encoded_word_iso_8859_1() {
+    let email_repository = MboxFile::new("datasets/test_lex.mbox").unwrap();
+    let email = email_repository.get_email(&0).unwrap();
+    assert_eq!("[l.educonnect.cp] ÉduConnect - Perturbation sur le service d'authentification responsables et élèves", email.subject);
+    assert!(email.body_html.is_none());
+    assert!(email.body_text.is_some());
+}
+
+#[test]
+fn test_get_email_encoded_word_utf8() {
+    let email_repository = MboxFile::new("datasets/test_lex.mbox").unwrap();
+    let email = email_repository.get_email(&2).unwrap();
+    assert_eq!("Modernisez vos processus RH sans complexité", email.subject);
+    assert!(email.body_html.is_none());
+    assert!(email.body_text.is_some());
 }

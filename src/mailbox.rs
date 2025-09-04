@@ -24,7 +24,8 @@ pub enum MailboxError {
     MboxValidationError,
     EmailNotFound,
     DecodeQuotedPrintableError,
-    UTF8EncodeError
+    UTF8EncodeError,
+    EncodedWordDecodeError,
 }
 
 pub trait MailStorageRepository {
@@ -33,6 +34,12 @@ pub trait MailStorageRepository {
     fn get_email(&self, id: &Self::EmailId) -> Result<Email, MailboxError>;
 
     fn count_emails(&self) -> Result<usize, MailboxError>;
+
+}
+
+pub trait MailSearchRepository {
+    type EmailId;
+
 
 }
 

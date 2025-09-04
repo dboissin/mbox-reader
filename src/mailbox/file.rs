@@ -1,8 +1,9 @@
-use std::{fmt::Display, fs::File, io::{BufRead, BufReader, Error}, ops::Range};
+use std::{fmt::Display, fs::{File, ReadDir}, io::{BufRead, BufReader, Error}, ops::Range};
 
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
 use quoted_printable::{decode, ParseMode};
+use rfc2047_decoder::{Decoder, RecoverStrategy};
 use serde::Serialize;
 use tracing::{error, info, warn};
 
@@ -19,7 +20,15 @@ pub struct MboxFile {
 struct BodyFilePtr {
     content_type: String,
     content_transfer_encoding: String,
-    content: SeekRange,
+    content: Range<usize>,
+}
+
+impl BodyFilePtr {
+
+    fn is_html(&self) -> bool {
+        self.content_type.contains("text/html")
+    }
+
 }
 
 struct EmailFilePtr {
@@ -150,7 +159,7 @@ impl MboxFile {
                         validator.bodies.push(BodyFilePtr {
                             content_type: ct.to_string(),
                             content_transfer_encoding: cte.to_string(),
-                            content: (*start_pos, *end_pos)
+                            content: Range{ start: *start_pos as usize, end : *end_pos as usize}
                         })
                     },
                     Some(Token::From(start_pos)) =>
@@ -258,13 +267,15 @@ impl MboxFile {
         }
     }
 
-    fn read_content(&self, range: &Range<usize>) -> Result<String, MailboxError> {
-        if let Ok(mut decoded) = decode(&self.file_mmap[range.start..range.end], ParseMode::Strict) {
-            for _ in 0..2 {
-                if let Some(end_val) = decoded.pop() && end_val != b'\n' && end_val != b'\r' {
-                    decoded.push(end_val);
-                }
-            }
+    fn get_header(&self, range: &Range<usize>) -> Result<String, MailboxError> {
+        let decoder = Decoder::new().too_long_encoded_word_strategy(RecoverStrategy::Skip);
+        decoder.decode(&self.file_mmap[range.start..range.end])
+            .map(|value| value.replace("\n", ""))
+            .or(Err(MailboxError::EncodedWordDecodeError))
+    }
+
+    fn get_body(&self, body_ptr: &BodyFilePtr) -> Result<String, MailboxError> {
+        if let Ok(decoded) = decode(&self.file_mmap[body_ptr.content.start..body_ptr.content.end], ParseMode::Robust) {
             String::from_utf8(decoded).or(Err(MailboxError::UTF8EncodeError))
         } else {
             Err(MailboxError::DecodeQuotedPrintableError)
@@ -279,11 +290,19 @@ impl MailStorageRepository for MboxFile {
     fn get_email(&self, id: &Self::EmailId) -> Result<Email, MailboxError> {
         if let Some(email_ptr) = self.emails.get(*id) {
             let email = Email {
-                from: self.read_content(&email_ptr.from)?,
+                from: self.get_header(&email_ptr.from)?,
                 datetime: email_ptr.datetime,
-                subject: self.read_content(&email_ptr.subject)?,
-                body_text: None,
-                body_html: None
+                subject: self.get_header(&email_ptr.subject)?,
+                body_text: email_ptr.bodies.iter()
+                            .filter(|bp| !bp.is_html())
+                            .next()
+                            .map(|bp| self.get_body(bp).ok())
+                            .flatten(),
+                body_html: email_ptr.bodies.iter()
+                            .filter(|bp| bp.is_html())
+                            .next()
+                            .map(|bp| self.get_body(bp).ok())
+                            .flatten()
             };
             Ok(email)
         } else {
