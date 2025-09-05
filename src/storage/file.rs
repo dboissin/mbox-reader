@@ -1,13 +1,14 @@
-use std::{fmt::Display, fs::{File, ReadDir}, io::{BufRead, BufReader, Error}, ops::Range};
+use std::{fs::{File}, io::{BufRead, BufReader, Error}, ops::Range};
 
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
 use quoted_printable::{decode, ParseMode};
 use rfc2047_decoder::{Decoder, RecoverStrategy};
 use serde::Serialize;
-use tracing::{error, info, warn};
+use tracing::{error, warn};
 
-use crate::mailbox::{Email, EmailError, FileSource, MailStorageRepository, MailboxError};
+use crate::{storage::MailboxError, Email, FileSource, MailStorageRepository};
+
 
 pub type SeekRange = (u64, u64);
 
@@ -67,23 +68,6 @@ enum Token {
     Continuation,
     Ignore
 }
-
-// impl Display for Token {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match *self {
-//             Token::StartEmail(_) => f.write_str("StartEmail"),
-//             Token::Subject(_) => f.write_str("Subject"),
-//             Token::Date(_) => f.write_str("Date"),
-//             Token::From(_) => f.write_str("From"),
-//             Token::Boby(_) => f.write_str("Boby"),
-//             Token::ContentType(_) => f.write_str("ContentType"),
-//             Token::ContentTransferEncoding(_) => f.write_str("ContentTransferEncoding"),
-//             Token::End(_) => f.write_str("End"),
-//             Token::Continuation => f.write_str("Continuation"),
-//             Token::Ignore => f.write_str("Ignore"),
-//         }
-//     }
-// }
 
 #[derive(Serialize)]
 struct EmailFilePtrValidator {

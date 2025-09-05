@@ -1,6 +1,6 @@
+use mbox_viewer::{storage::{file::MboxFile, MailboxError}, FileSource, MailStorageRepository};
 
-use mbox_viewer::mailbox::{file::MboxFile, FileSource, MailStorageRepository, MailboxError};
-use tracing_test::traced_test;
+
 
 #[test]
 fn test_not_exists_mbox_file() {
