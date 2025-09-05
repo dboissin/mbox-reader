@@ -1,4 +1,4 @@
-use mbox_viewer::{storage::{file::MboxFile, MailboxError}, FileSource, MailStorageRepository};
+use mbox_viewer::{embedding::{local::InternalEmbedder, Embedder}, storage::{file::MboxFile, MailboxError}, FileSource, MailStorageRepository};
 
 
 
@@ -47,4 +47,27 @@ fn test_get_email_encoded_word_utf8() {
     assert_eq!("Modernisez vos processus RH sans complexité", email.subject);
     assert!(email.body_html.is_none());
     assert!(email.body_text.is_some());
+}
+
+#[test]
+fn test_embed_sentences() {
+    let embedder = InternalEmbedder::new()
+        .unwrap_or_else(|_| panic!("Embedder init error"));
+    let sentences = [
+        "Modernisez vos processus RH sans complexité",
+        "[l.educonnect.cp] ÉduConnect - Perturbation sur le service d'authentification responsables et élèves"
+    ];
+    let res = embedder.embed(&sentences);
+    assert!(res.is_ok());
+    assert_eq!(2, res.unwrap().len());
+}
+
+#[test]
+fn test_embed_sentence() {
+    let embedder = InternalEmbedder::new()
+        .unwrap_or_else(|_| panic!("Embedder init error"));
+    let sentence = "Modernisez vos processus RH sans complexité";
+    let res = embedder.embed_line(sentence);
+    assert!(res.is_ok());
+    assert_eq!(384, res.unwrap().len());
 }
