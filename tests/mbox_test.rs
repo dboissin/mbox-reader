@@ -1,4 +1,7 @@
+use std::time::Instant;
+
 use mbox_viewer::{embedding::{local::InternalEmbedder, Embedder}, mailbox::MailboxService, storage::{file::MboxFile, MailboxError}, MailStorageRepository};
+use tracing_test::traced_test;
 
 
 
@@ -73,10 +76,17 @@ fn test_embed_sentence() {
 }
 
 #[test]
+#[traced_test]
 fn test_index_and_search_memory_cos() {
+    let init = Instant::now();
     let mut mailbox_service:MailboxService<MboxFile> = "datasets/test_emails_1000.mbox".try_into().unwrap();
+    tracing::info!("Init mailbox time : {:?}", init.elapsed());
+    let index = Instant::now();
     mailbox_service.index_emails();
+    tracing::info!("Index mailbox time : {:?}", index.elapsed());
+    let search = Instant::now();
     let emails = mailbox_service.search_email("Je cherche un email en rapport avec une mise à jour de logiciel.").unwrap();
+    tracing::info!("Search time : {:?}", search.elapsed());
     assert_eq!(5, emails.len());
     for (_, email) in &emails {
         assert!(email.body_text.as_ref().unwrap().contains("logiciel"))

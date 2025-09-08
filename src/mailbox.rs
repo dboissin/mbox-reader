@@ -5,6 +5,17 @@ use tracing::error;
 
 use crate::{embedding::{local::InternalEmbedder, Embedder}, search::memory_cosinus::MemoryCosinus, storage::{file::MboxFile}, MailSearchRepository, MailStorageRepository};
 
+macro_rules! time_it {
+    ($name:expr, $code:block) => {{
+        use std::time::Instant;
+        let start = Instant::now();
+        let result = $code;
+        let duration = start.elapsed();
+        println!("{}: {:?}", $name, duration);
+        result
+    }};
+}
+
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 #[derive(Debug, strum::Display)]
@@ -43,23 +54,40 @@ pub struct MailboxService<T:MailStorageRepository> {
 impl <T:MailStorageRepository> MailboxService<T> {
 
     pub fn index_emails(&mut self) {
-        for email in self.storage_repository.emails() {
-            if let Ok(vector) = self.embedder.embed_line(&email.body_text.unwrap()) {
-                if self.search_repository.index(email.id, vector).is_err() {
-                    error!("Error when store search embedding of email");
+        const INDEX_BUFFER_SIZE: usize = 150;
+
+        let mut emails_iterator = self.storage_repository.emails();
+        loop {
+            let mut buf: Vec<Email<<T as MailStorageRepository>::EmailId>> = Vec::with_capacity(INDEX_BUFFER_SIZE);
+            for _ in 0..INDEX_BUFFER_SIZE {
+                if let Some(email) = emails_iterator.next() {
+                    buf.push(email);
+                } else {
+                    break;
+                }
+            }
+            if buf.is_empty() {
+                break;
+            }
+
+            let bodies:Vec<&str> = buf.iter().map(|email| email.body_text.as_ref().unwrap().as_str()).collect();
+            if let Ok(mut vectors) = self.embedder.embed(&bodies) && vectors.len() == buf.len() {
+                while let Some(email) = buf.pop() && let Some(vector) = vectors.pop() {
+                    if self.search_repository.index(email.id, vector).is_err() {
+                        error!("Error when store search embedding of email");
+                    }
                 }
             } else {
-                error!("Error when calculate embeddind of email : {}", email.id);
+                error!("Error when calculate embeddind of emails : {}", buf.iter().map(|email| email.id.to_string()).collect::<String>());
             }
         }
     }
 
-    const LIMIT_SEARCH_RESULTS: usize = 5;
-
     pub fn search_email(&self, search_request: &str) -> Result<Vec<(f32, Email<<T as MailStorageRepository>::EmailId>)>> {
+        const LIMIT_SEARCH_RESULTS: usize = 5;
         let embedded_request = self.embedder.embed_line(search_request)?;
-        let emails_idx = self.search_repository.search(&embedded_request, Self::LIMIT_SEARCH_RESULTS)?;
-        let mut res = Vec::with_capacity(Self::LIMIT_SEARCH_RESULTS);
+        let emails_idx = self.search_repository.search(&embedded_request, LIMIT_SEARCH_RESULTS)?;
+        let mut res = Vec::with_capacity(LIMIT_SEARCH_RESULTS);
         for email_idx in emails_idx {
             res.push((email_idx.score, self.storage_repository.get_email(&email_idx.id)?));
         }
@@ -72,7 +100,7 @@ impl<'a> TryFrom<&str> for MailboxService<MboxFile> {
     type Error = MailboxServiceError;
 
     fn try_from(source: &str) -> std::result::Result<Self, Self::Error> {
-        if let Ok(embedder) = InternalEmbedder::new() {
+        if let Ok(embedder) = time_it!("Init internal embedder", { InternalEmbedder::new() }) {
             MboxFile::new(source)
                 .map(|s| MailboxService {
                     storage_repository: s,

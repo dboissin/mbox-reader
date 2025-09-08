@@ -7,4 +7,3 @@ pub use mailbox::Email;
 pub use search::MailSearchRepository;
 pub use search::SearchResult;
 pub use storage::MailStorageRepository;
-// pub use storage::FileSource;

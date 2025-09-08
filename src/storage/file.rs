@@ -1,11 +1,11 @@
-use std::{fs::{File}, io::{BufRead, BufReader, Error}, ops::Range};
+use std::{fs::File, io::{BufRead, BufReader, Error}, ops::Range, time::{Duration, Instant}};
 
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
 use quoted_printable::{decode, ParseMode};
 use rfc2047_decoder::{Decoder, RecoverStrategy};
 use serde::Serialize;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 use crate::{storage::MailboxError, Email, MailStorageRepository};
 
@@ -291,7 +291,7 @@ impl MailStorageRepository for MboxFile {
     }
 
     fn emails(&self) -> impl Iterator<Item = Email<Self::EmailId>> {
-        EmailIterator { idx: 0, mbox: &self }
+        EmailIterator { idx: 0, mbox: &self, duration: Duration::new(0, 0) }
     }
 
 }
@@ -299,14 +299,20 @@ impl MailStorageRepository for MboxFile {
 struct EmailIterator<'a> {
     idx: usize,
     mbox: &'a MboxFile,
+    duration: Duration,
 }
 
 impl<'a> Iterator for EmailIterator<'a> {
     type Item = Email<usize>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        let start = Instant::now();
         let res = self.mbox.get_email(&self.idx).ok();
         self.idx += 1;
+        self.duration += start.elapsed();
+        if res.is_none() {
+            println!("Get emails content total duration : {:?}", self.duration);
+        }
         res
     }
 }
