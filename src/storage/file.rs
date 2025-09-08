@@ -7,7 +7,7 @@ use rfc2047_decoder::{Decoder, RecoverStrategy};
 use serde::Serialize;
 use tracing::{error, warn};
 
-use crate::{storage::MailboxError, Email, FileSource, MailStorageRepository};
+use crate::{storage::MailboxError, Email, MailStorageRepository};
 
 
 pub type SeekRange = (u64, u64);
@@ -38,15 +38,6 @@ struct EmailFilePtr {
     from: Range<usize>,
     datetime: DateTime<Utc>,
     bodies: Vec<BodyFilePtr>,
-}
-
-impl<'a> TryFrom<FileSource<'a>> for MboxFile {
-    type Error = MailboxError;
-
-    fn try_from(source: FileSource<'a>) -> Result<Self, Self::Error> {
-        MboxFile::new(source.0)
-    }
-
 }
 
 impl From<Error> for MailboxError {
@@ -271,9 +262,10 @@ impl MboxFile {
 impl MailStorageRepository for MboxFile {
     type EmailId = usize;
 
-    fn get_email(&self, id: &Self::EmailId) -> Result<Email, MailboxError> {
+    fn get_email(&self, id: &Self::EmailId) -> Result<Email<Self::EmailId>, MailboxError> {
         if let Some(email_ptr) = self.emails.get(*id) {
             let email = Email {
+                id: *id,
                 from: self.get_header(&email_ptr.from)?,
                 datetime: email_ptr.datetime,
                 subject: self.get_header(&email_ptr.subject)?,
@@ -298,6 +290,25 @@ impl MailStorageRepository for MboxFile {
         Ok(self.emails.len())
     }
 
+    fn emails(&self) -> impl Iterator<Item = Email<Self::EmailId>> {
+        EmailIterator { idx: 0, mbox: &self }
+    }
+
+}
+
+struct EmailIterator<'a> {
+    idx: usize,
+    mbox: &'a MboxFile,
+}
+
+impl<'a> Iterator for EmailIterator<'a> {
+    type Item = Email<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let res = self.mbox.get_email(&self.idx).ok();
+        self.idx += 1;
+        res
+    }
 }
 
 #[cfg(test)]

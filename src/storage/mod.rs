@@ -1,10 +1,12 @@
+use std::{error::Error, fmt::Display};
+
 use crate::Email;
 
 pub mod file;
 
-pub struct FileSource<'a>(pub &'a str);
+// pub struct FileSource<'a>(pub &'a str);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, strum::Display)]
 pub enum MailboxError {
     MboxFileNotFound,
     MboxParseError,
@@ -15,11 +17,15 @@ pub enum MailboxError {
     EncodedWordDecodeError,
 }
 
-pub trait MailStorageRepository {
-    type EmailId;
+impl Error for MailboxError {}
 
-    fn get_email(&self, id: &Self::EmailId) -> Result<Email, MailboxError>;
+pub trait MailStorageRepository {
+    type EmailId: PartialOrd + Display;
+
+    fn get_email(&self, id: &Self::EmailId) -> Result<Email<Self::EmailId>, MailboxError>;
 
     fn count_emails(&self) -> Result<usize, MailboxError>;
+
+    fn emails(&self) -> impl Iterator<Item = Email<Self::EmailId>>;
 
 }

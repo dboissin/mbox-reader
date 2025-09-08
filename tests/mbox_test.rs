@@ -1,10 +1,10 @@
-use mbox_viewer::{embedding::{local::InternalEmbedder, Embedder}, storage::{file::MboxFile, MailboxError}, FileSource, MailStorageRepository};
+use mbox_viewer::{embedding::{local::InternalEmbedder, Embedder}, mailbox::MailboxService, storage::{file::MboxFile, MailboxError}, MailStorageRepository};
 
 
 
 #[test]
 fn test_not_exists_mbox_file() {
-    let mbox:Result<MboxFile,MailboxError> = FileSource("/chemin/vers/fichier/inexistant").try_into();
+    let mbox:Result<MboxFile,MailboxError> = MboxFile::new("/chemin/vers/fichier/inexistant");
     assert!(mbox.is_err());
     assert!(mbox.as_ref().is_err_and(|e| *e == MailboxError::MboxFileNotFound));
     assert!(mbox.as_ref().is_err_and(|e| *e != MailboxError::MboxParseError));
@@ -12,7 +12,7 @@ fn test_not_exists_mbox_file() {
 
 #[test]
 fn test_exists_mbox_file() {
-    let mbox:Result<MboxFile,MailboxError> = FileSource("datasets/dev_apisix_apache_org.mbox").try_into();
+    let mbox:Result<MboxFile,MailboxError> = MboxFile::new("datasets/dev_apisix_apache_org.mbox");
     assert!(mbox.is_ok());
 }
 
@@ -70,4 +70,15 @@ fn test_embed_sentence() {
     let res = embedder.embed_line(sentence);
     assert!(res.is_ok());
     assert_eq!(384, res.unwrap().len());
+}
+
+#[test]
+fn test_index_and_search_memory_cos() {
+    let mut mailbox_service:MailboxService<MboxFile> = "datasets/test_emails_1000.mbox".try_into().unwrap();
+    mailbox_service.index_emails();
+    let emails = mailbox_service.search_email("Je cherche un email en rapport avec une mise à jour de logiciel.").unwrap();
+    assert_eq!(5, emails.len());
+    for (_, email) in &emails {
+        assert!(email.body_text.as_ref().unwrap().contains("logiciel"))
+    }
 }

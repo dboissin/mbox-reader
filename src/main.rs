@@ -1,6 +1,6 @@
-use mbox_viewer::{storage::file::MboxFile, FileSource};
+use mbox_viewer::{mailbox::MailboxService, storage::file::MboxFile};
 
 
 fn main() {
-    let mailbox:MboxFile = FileSource("fegge").try_into().unwrap();
+    let mailbox:MailboxService<MboxFile> = "fegge".try_into().unwrap();
 }
