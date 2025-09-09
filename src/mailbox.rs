@@ -3,7 +3,7 @@ use std::{error::Error, fmt::Display};
 use chrono::{DateTime, Utc};
 use tracing::error;
 
-use crate::{embedding::{local::InternalEmbedder, Embedder}, search::memory_cosinus::MemoryCosinus, storage::{file::MboxFile}, MailSearchRepository, MailStorageRepository};
+use crate::{embedding::{local::{InternalEmbedder, InternalEmbedderPool}, Embedder}, search::memory_cosinus::MemoryCosinus, storage::file::MboxFile, MailSearchRepository, MailStorageRepository};
 
 macro_rules! time_it {
     ($name:expr, $code:block) => {{
@@ -54,7 +54,7 @@ pub struct MailboxService<T:MailStorageRepository> {
 impl <T:MailStorageRepository> MailboxService<T> {
 
     pub fn index_emails(&mut self) {
-        const INDEX_BUFFER_SIZE: usize = 150;
+        const INDEX_BUFFER_SIZE: usize = 600;
 
         let mut emails_iterator = self.storage_repository.emails();
         loop {
@@ -100,7 +100,8 @@ impl<'a> TryFrom<&str> for MailboxService<MboxFile> {
     type Error = MailboxServiceError;
 
     fn try_from(source: &str) -> std::result::Result<Self, Self::Error> {
-        if let Ok(embedder) = time_it!("Init internal embedder", { InternalEmbedder::new() }) {
+        // if let Ok(embedder) = time_it!("Init internal embedder", { InternalEmbedder::new() }) {
+        if let Ok(embedder) = time_it!("Init internal embedder", { InternalEmbedderPool::new(4) }) {
             MboxFile::new(source)
                 .map(|s| MailboxService {
                     storage_repository: s,
