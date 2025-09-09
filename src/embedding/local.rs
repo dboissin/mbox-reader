@@ -1,4 +1,4 @@
-use std::{sync::Arc, thread};
+use std::{sync::{mpsc::{self}, Arc, Mutex}, thread};
 
 use crossbeam_channel::{bounded, Receiver, Sender};
 use rust_bert::pipelines::sentence_embeddings::{SentenceEmbeddingsBuilder, SentenceEmbeddingsModel, SentenceEmbeddingsModelType};
@@ -114,6 +114,81 @@ impl <'a> Embedder for InternalEmbedderPool {
 
     fn embed_line(&self, text: &str) -> Result<Vec<f32>, EmbeddingError> {
         if let Ok(mut res) = self.embed(&[text]) {
+            res.pop().ok_or(EmbeddingError::MissingResultError)
+        } else {
+            Err(EmbeddingError::EncodeError)
+        }
+    }
+
+}
+
+pub struct InternalEmbedderModelPool {
+    embedders: Vec<Arc<Mutex<InternalEmbedder>>>,
+    nb_embedders: usize,
+}
+
+impl InternalEmbedderModelPool  {
+
+    pub fn new(workers: usize) -> Result<Self, EmbeddingError> {
+        let mut  embedders = Vec::with_capacity(workers);
+        for _ in 0..workers {
+            embedders.push(Arc::from(Mutex::new(InternalEmbedder::new()?)));
+        }
+        Ok(Self { embedders, nb_embedders: workers })
+    }
+
+}
+
+impl Embedder for InternalEmbedderModelPool {
+    fn embed(&self, text: &[&str]) -> Result<Vec<Vec<f32>>, EmbeddingError> {
+        let slice_size = (text.len() + self.nb_embedders - 1) / self.nb_embedders;
+        let tasks = text.chunks(slice_size).enumerate()
+            .map(|(idx, chunk)| EmbeddingTask{
+                idx,
+                contents: chunk.iter().map(|t| Arc::from(*t)).collect(),
+            });
+
+        let (tx, rx) = mpsc::channel();
+        let mut expected_responses = 0;
+        let mut children = Vec::with_capacity(self.nb_embedders);
+        for task in tasks {
+            let tx_thread:mpsc::Sender<EmbeddingResult> = tx.clone();
+            let embedder_mutex = self.embedders[expected_responses].clone();
+            let child = thread::spawn(move || {
+                let embedder = embedder_mutex.lock().unwrap();
+                let vectors = embedder.embed(&task.contents.iter().map(|c| c.as_ref()).collect::<Vec<&str>>());
+                tx_thread.send(EmbeddingResult { idx: task.idx, vectors: vectors.unwrap() })
+            });
+            children.push(child);
+            expected_responses += 1;
+        }
+
+        let mut embedding_results = Vec::with_capacity(expected_responses);
+        while expected_responses > 0 {
+            if let Ok(r) = rx.recv() {
+                embedding_results.push(r);
+                expected_responses -= 1;
+            } else {
+                return Err(EmbeddingError::EncodeError);
+            }
+        }
+
+        embedding_results.sort_by(|a, b| a.idx.cmp(&b.idx));
+
+        let mut result = Vec::with_capacity(text.len());
+        for embedding in embedding_results {
+            result.extend(embedding.vectors);
+        }
+        for child in children {
+            if child.join().is_err() {
+                return Err(EmbeddingError::EncodeError);
+            }
+        }
+        Ok(result)
+    }
+
+    fn embed_line(&self, text: &str) -> Result<Vec<f32>, EmbeddingError> {
+         if let Ok(mut res) = self.embed(&[text]) {
             res.pop().ok_or(EmbeddingError::MissingResultError)
         } else {
             Err(EmbeddingError::EncodeError)

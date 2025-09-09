@@ -3,7 +3,7 @@ use std::{error::Error, fmt::Display};
 use chrono::{DateTime, Utc};
 use tracing::error;
 
-use crate::{embedding::{local::{InternalEmbedder, InternalEmbedderPool}, Embedder}, search::memory_cosinus::MemoryCosinus, storage::file::MboxFile, MailSearchRepository, MailStorageRepository};
+use crate::{embedding::{local::{InternalEmbedder, InternalEmbedderModelPool, InternalEmbedderPool}, Embedder}, search::memory_cosinus::MemoryCosinus, storage::file::MboxFile, MailSearchRepository, MailStorageRepository};
 
 macro_rules! time_it {
     ($name:expr, $code:block) => {{
@@ -101,7 +101,7 @@ impl<'a> TryFrom<&str> for MailboxService<MboxFile> {
 
     fn try_from(source: &str) -> std::result::Result<Self, Self::Error> {
         // if let Ok(embedder) = time_it!("Init internal embedder", { InternalEmbedder::new() }) {
-        if let Ok(embedder) = time_it!("Init internal embedder", { InternalEmbedderPool::new(4) }) {
+        if let Ok(embedder) = time_it!("Init internal embedder", { InternalEmbedderModelPool::new(4) }) {
             MboxFile::new(source)
                 .map(|s| MailboxService {
                     storage_repository: s,
