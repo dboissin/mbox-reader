@@ -1,5 +1,7 @@
 use std::{collections::{BinaryHeap, HashMap}, hash::Hash};
 
+use tracing::debug;
+
 use crate::{MailSearchRepository, SearchResult};
 
 
@@ -42,11 +44,14 @@ impl <T: Hash + Eq + PartialOrd + Clone> MailSearchRepository for MemoryCosinus<
             if scores.len() < nb_results {
                 scores.push(SearchResult{id: id.clone(), score});
             } else if let Some(min_result) = scores.peek() && min_result.score < score {
+                debug!("Replace score {} by {}", &min_result.score, &score);
                 scores.pop();
                 scores.push(SearchResult{id: id.clone(), score});
             }
         }
-        Ok(scores.into_iter().collect())
+        let mut res: Vec<SearchResult<_>> = scores.into_iter().collect();
+        res.sort();
+        Ok(res)
     }
 }
 

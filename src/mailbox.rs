@@ -70,15 +70,17 @@ impl <T:MailStorageRepository> MailboxService<T> {
                 break;
             }
 
-            let bodies:Vec<&str> = buf.iter().map(|email| email.body_text.as_ref().unwrap().as_str()).collect();
-            if let Ok(mut vectors) = self.embedder.embed(&bodies) && vectors.len() == buf.len() {
-                while let Some(email) = buf.pop() && let Some(vector) = vectors.pop() {
-                    if self.search_repository.index(email.id, vector).is_err() {
+            let (mut ids, bodies) = self.emails_to_ids_and_bodies_if_body_exists(buf);
+            let bodies_str:Vec<&str> = bodies.iter().map(|body| body.as_str()).collect();
+
+            if let Ok(mut vectors) = self.embedder.embed(&bodies_str) && vectors.len() == ids.len() {
+                while let Some(id) = ids.pop() && let Some(vector) = vectors.pop() {
+                    if self.search_repository.index(id, vector).is_err() {
                         error!("Error when store search embedding of email");
                     }
                 }
             } else {
-                error!("Error when calculate embeddind of emails : {}", buf.iter().map(|email| email.id.to_string()).collect::<String>());
+                error!("Error when calculate embeddind of emails : {}", ids.iter().map(|id| id.to_string()).collect::<String>());
             }
         }
     }
@@ -94,7 +96,23 @@ impl <T:MailStorageRepository> MailboxService<T> {
         Ok(res)
     }
 
+    fn emails_to_ids_and_bodies_if_body_exists(&self, buf: Vec<Email<<T as MailStorageRepository>::EmailId>>) -> (Vec<<T as MailStorageRepository>::EmailId>, Vec<String>) {
+        buf.into_iter()
+            .filter_map(|email|
+                if let Some(body_text) = email.body_text {
+                    Some((email.id, body_text))
+                } else if let Some(body_html) = email.body_html  {
+                    Some((email.id, body_html))
+                } else {
+                    None
+                }
+            )
+            .unzip()
+    }
+
 }
+
+
 
 impl<'a> TryFrom<&str> for MailboxService<MboxFile> {
     type Error = MailboxServiceError;

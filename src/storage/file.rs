@@ -5,7 +5,7 @@ use memmap2::Mmap;
 use quoted_printable::{decode, ParseMode};
 use rfc2047_decoder::{Decoder, RecoverStrategy};
 use serde::Serialize;
-use tracing::{error, info, warn};
+use tracing::{debug, error, warn};
 
 use crate::{storage::MailboxError, Email, MailStorageRepository};
 
@@ -219,7 +219,7 @@ impl MboxFile {
             Token::Date(buf[6..].to_string())
         } else if buf.starts_with("Content-Transfer-Encoding: ") {
             Token::ContentTransferEncoding(buf[27..].to_string())
-        } else if buf.starts_with("Content-Type: ") {
+        } else if buf.starts_with("Content-Type: ") || buf.starts_with("	boundary=") {
             if let Some(nb) = buf.find("boundary=") {
                 let tmp_boundary = &buf[(nb+10)..];
                 if let Some(idx) = tmp_boundary.find('"') {
@@ -311,7 +311,7 @@ impl<'a> Iterator for EmailIterator<'a> {
         self.idx += 1;
         self.duration += start.elapsed();
         if res.is_none() {
-            println!("Get emails content total duration : {:?}", self.duration);
+            debug!("Get emails content total duration : {:?}", self.duration);
         }
         res
     }
