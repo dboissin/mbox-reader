@@ -1,7 +1,8 @@
-use std::{sync::{mpsc::{self}, Arc, Mutex}, thread};
+use std::{fmt, sync::{mpsc::{self}, Arc, Mutex}, thread};
 
 use crossbeam_channel::{bounded, Receiver, Sender};
 use rust_bert::pipelines::sentence_embeddings::{SentenceEmbeddingsBuilder, SentenceEmbeddingsModel, SentenceEmbeddingsModelType};
+use tracing::instrument;
 
 use crate::embedding::{Embedder, EmbeddingError};
 
@@ -23,8 +24,17 @@ impl InternalEmbedder {
 
 }
 
+impl fmt::Debug for InternalEmbedder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("InternalEmbedder")
+            .field("model", &"<SentenceEmbeddingsModel>")
+            .finish()
+    }
+}
+
 impl Embedder for InternalEmbedder {
 
+    #[instrument(skip_all)]
     fn embed(&self, text: &[&str]) -> Result<Vec<Vec<f32>>, super::EmbeddingError> {
         self.model.encode(text).or(Err(EmbeddingError::EncodeError))
     }
@@ -49,6 +59,7 @@ struct EmbeddingResult {
     vectors: Vec<Vec<f32>>,
 }
 
+#[derive(Debug)]
 pub struct InternalEmbedderPool {
     nb_embedders: usize,
     task_send: Sender<EmbeddingTask>,
@@ -122,6 +133,7 @@ impl <'a> Embedder for InternalEmbedderPool {
 
 }
 
+#[derive(Debug)]
 pub struct InternalEmbedderModelPool {
     embedders: Vec<Arc<Mutex<InternalEmbedder>>>,
     nb_embedders: usize,
@@ -129,6 +141,7 @@ pub struct InternalEmbedderModelPool {
 
 impl InternalEmbedderModelPool  {
 
+    #[instrument(name = "Initialise models")]
     pub fn new(workers: usize) -> Result<Self, EmbeddingError> {
         let mut  embedders = Vec::with_capacity(workers);
         for _ in 0..workers {

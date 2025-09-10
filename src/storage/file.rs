@@ -5,19 +5,20 @@ use memmap2::Mmap;
 use quoted_printable::{decode, ParseMode};
 use rfc2047_decoder::{Decoder, RecoverStrategy};
 use serde::Serialize;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, instrument, warn};
 
 use crate::{storage::MailboxError, Email, MailStorageRepository};
 
 
 pub type SeekRange = (u64, u64);
 
+#[derive(Debug)]
 pub struct MboxFile {
     emails: Vec<EmailFilePtr>,
     file_mmap: Mmap,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct BodyFilePtr {
     content_type: String,
     content_transfer_encoding: String,
@@ -32,6 +33,7 @@ impl BodyFilePtr {
 
 }
 
+#[derive(Debug)]
 struct EmailFilePtr {
     email: Range<usize>,
     subject: Range<usize>,
@@ -105,6 +107,7 @@ impl MboxFile {
         Self::parse(&tokens).map(| emails| MboxFile { emails, file_mmap })
     }
 
+    #[instrument(skip_all)]
     fn parse(tokens: &[Token]) -> Result<Vec<EmailFilePtr>, MailboxError> {
         let mut emails = vec![];
         let mut stack: Vec<&Token> = vec![];
@@ -163,6 +166,7 @@ impl MboxFile {
         Ok(emails)
     }
 
+    #[instrument]
     fn lex(file_path: &str) -> Result<Vec<Token>, MailboxError> {
         let mut file_reader = BufReader::new(File::open(file_path)?);
         let mut seek_position:u64 = 0;

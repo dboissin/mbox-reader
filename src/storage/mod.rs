@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display};
+use std::{error::Error, fmt::{Debug, Display}};
 
 use crate::Email;
 
@@ -19,7 +19,7 @@ pub enum MailboxError {
 
 impl Error for MailboxError {}
 
-pub trait MailStorageRepository {
+pub trait MailStorageRepository: Debug {
     type EmailId: PartialOrd + Display;
 
     fn get_email(&self, id: &Self::EmailId) -> Result<Email<Self::EmailId>, MailboxError>;

@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt::Debug};
 
 pub mod memory_cosinus;
 
@@ -16,7 +16,7 @@ pub struct SearchResult<T: PartialOrd> {
     pub score: f32,
 }
 
-pub trait MailSearchRepository {
+pub trait MailSearchRepository: Debug {
     type EmailId: PartialOrd;
 
     fn index(&mut self, id: Self::EmailId, email_vector: Vec<f32>) -> Result<(), SearchError>;

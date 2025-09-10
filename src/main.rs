@@ -7,6 +7,7 @@ use mbox_viewer::{mailbox::MailboxService, storage::file::MboxFile};
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::CLOSE)
         .init();
     let args: Vec<String> = env::args().collect();
     let search_request = &args[1];

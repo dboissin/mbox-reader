@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt::Debug};
 
 pub mod local;
 
@@ -12,7 +12,7 @@ pub enum EmbeddingError {
 
 impl Error for EmbeddingError {}
 
-pub trait Embedder {
+pub trait Embedder: Debug {
 
     fn embed(&self, text: &[&str]) -> Result<Vec<Vec<f32>>, EmbeddingError>;
 

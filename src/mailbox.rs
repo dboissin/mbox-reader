@@ -1,20 +1,9 @@
 use std::{error::Error, fmt::Display};
 
 use chrono::{DateTime, Utc};
-use tracing::error;
+use tracing::{error, instrument};
 
 use crate::{embedding::{local::{InternalEmbedder, InternalEmbedderModelPool, InternalEmbedderPool}, Embedder}, search::memory_cosinus::MemoryCosinus, storage::file::MboxFile, MailSearchRepository, MailStorageRepository};
-
-macro_rules! time_it {
-    ($name:expr, $code:block) => {{
-        use std::time::Instant;
-        let start = Instant::now();
-        let result = $code;
-        let duration = start.elapsed();
-        println!("{}: {:?}", $name, duration);
-        result
-    }};
-}
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -45,6 +34,7 @@ impl<EmailId: Display> Display for Email<EmailId> {
     }
 }
 
+#[derive(Debug)]
 pub struct MailboxService<T:MailStorageRepository> {
     storage_repository: T,
     search_repository: Box<dyn MailSearchRepository<EmailId = <T as MailStorageRepository>::EmailId>>,
@@ -53,6 +43,7 @@ pub struct MailboxService<T:MailStorageRepository> {
 
 impl <T:MailStorageRepository> MailboxService<T> {
 
+    #[instrument(skip_all)]
     pub fn index_emails(&mut self) {
         const INDEX_BUFFER_SIZE: usize = 600;
 
@@ -85,6 +76,7 @@ impl <T:MailStorageRepository> MailboxService<T> {
         }
     }
 
+    #[instrument(skip_all, fields(user_search_input=%search_request))]
     pub fn search_email(&self, search_request: &str) -> Result<Vec<(f32, Email<<T as MailStorageRepository>::EmailId>)>> {
         const LIMIT_SEARCH_RESULTS: usize = 5;
         let embedded_request = self.embedder.embed_line(search_request)?;
@@ -119,7 +111,7 @@ impl<'a> TryFrom<&str> for MailboxService<MboxFile> {
 
     fn try_from(source: &str) -> std::result::Result<Self, Self::Error> {
         // if let Ok(embedder) = time_it!("Init internal embedder", { InternalEmbedder::new() }) {
-        if let Ok(embedder) = time_it!("Init internal embedder", { InternalEmbedderModelPool::new(4) }) {
+        if let Ok(embedder) = InternalEmbedderModelPool::new(4) {
             MboxFile::new(source)
                 .map(|s| MailboxService {
                     storage_repository: s,

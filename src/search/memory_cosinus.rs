@@ -1,15 +1,15 @@
-use std::{collections::{BinaryHeap, HashMap}, hash::Hash};
+use std::{collections::{BinaryHeap, HashMap}, fmt::Debug, hash::Hash};
 
-use tracing::debug;
+use tracing::{debug, instrument};
 
 use crate::{MailSearchRepository, SearchResult};
 
-
-pub struct MemoryCosinus<T> {
+#[derive(Debug)]
+pub struct MemoryCosinus<T:Debug> {
     vectors: HashMap<T, Vec<f32>>
 }
 
-impl <T> MemoryCosinus<T> {
+impl <T:Debug> MemoryCosinus<T> {
 
     pub fn new() -> MemoryCosinus<T> {
         Self { vectors: HashMap::new() }
@@ -29,7 +29,7 @@ impl <T> MemoryCosinus<T> {
 
 }
 
-impl <T: Hash + Eq + PartialOrd + Clone> MailSearchRepository for MemoryCosinus<T> {
+impl <T: Hash + Eq + PartialOrd + Clone + Debug> MailSearchRepository for MemoryCosinus<T> {
     type EmailId = T;
 
     fn index(&mut self, id: Self::EmailId, email_vector: Vec<f32>) -> Result<(), super::SearchError> {
@@ -37,6 +37,7 @@ impl <T: Hash + Eq + PartialOrd + Clone> MailSearchRepository for MemoryCosinus<
         Ok(())
     }
 
+    #[instrument(skip_all, fields(nb_resultats = %nb_results))]
     fn search(&self, ask: &[f32], nb_results: usize) -> Result<Vec<SearchResult<Self::EmailId>>, super::SearchError> {
         let mut scores = BinaryHeap::with_capacity(nb_results);
         for (id, vector) in &self.vectors {
@@ -53,6 +54,7 @@ impl <T: Hash + Eq + PartialOrd + Clone> MailSearchRepository for MemoryCosinus<
         res.sort();
         Ok(res)
     }
+
 }
 
 #[cfg(test)]
